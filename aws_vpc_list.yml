@@ -1,0 +1,72 @@
+---
+- name: Report VPCs
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get list of all VPCs
+      amazon.aws.ec2_vpc_net_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: vpc_data
+
+    - name: Display VPC Details
+      ansible.builtin.debug:
+        msg: "VPC ID: {{ item.vpc_id }} | Name: {{ item.tags.Name | default('N/A') }} | CIDR: {{ item.cidr_block }} | State: {{ item.state }} | Default: {{ item.is_default }}"
+      loop: "{{ vpc_data.vpcs }}"
+      loop_control:
+        label: "{{ item.vpc_id }}"
+
+    - name: Get list of all Subnets
+      amazon.aws.ec2_vpc_subnet_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: subnet_data
+
+    - name: Display Subnet Details
+      ansible.builtin.debug:
+        msg: "Subnet ID: {{ item.subnet_id }} | Name: {{ item.tags.Name | default('N/A') }} | VPC: {{ item.vpc_id }} | CIDR: {{ item.cidr_block }} | AZ: {{ item.availability_zone }} | Available IPs: {{ item.available_ip_address_count }}"
+      loop: "{{ subnet_data.subnets }}"
+      loop_control:
+        label: "{{ item.subnet_id }}"
+
+    - name: Get list of all Internet Gateways
+      amazon.aws.ec2_vpc_igw_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: igw_data
+
+    - name: Display Internet Gateway Details
+      ansible.builtin.debug:
+        msg: "IGW ID: {{ item.internet_gateway_id }} | Name: {{ item.tags.Name | default('N/A') }} | VPC: {{ item.attachments[0].vpc_id | default('Not Attached') }} | State: {{ item.attachments[0].state | default('N/A') }}"
+      loop: "{{ igw_data.internet_gateways }}"
+      loop_control:
+        label: "{{ item.internet_gateway_id }}"

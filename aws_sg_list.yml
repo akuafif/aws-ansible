@@ -1,0 +1,46 @@
+---
+- name: Report Security Groups
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get list of all Security Groups
+      amazon.aws.ec2_security_group_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: sg_data
+
+    - name: Display Security Group Details
+      ansible.builtin.debug:
+        msg: "SG ID: {{ item.group_id }} | Name: {{ item.group_name }} | Description: {{ item.description }} | VPC: {{ item.vpc_id }}"
+      loop: "{{ sg_data.security_groups }}"
+      loop_control:
+        label: "{{ item.group_id }}"
+
+    - name: Display Security Group Ingress Rules
+      ansible.builtin.debug:
+        msg: "SG ID: {{ item.0.group_id }} | Name: {{ item.0.group_name }} | Protocol: {{ item.1.ip_protocol }} | Port: {{ item.1.from_port | default('All') }}-{{ item.1.to_port | default('All') }} | Source: {{ item.1.ip_ranges | map(attribute='cidr_ip') | join(', ') | default('N/A') }}"
+      loop: "{{ sg_data.security_groups | subelements('ip_permissions', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.group_id }}"
+      when: item.0.ip_permissions | length > 0
+
+    - name: Display Security Group Egress Rules
+      ansible.builtin.debug:
+        msg: "SG ID: {{ item.0.group_id }} | Name: {{ item.0.group_name }} | Protocol: {{ item.1.ip_protocol }} | Port: {{ item.1.from_port | default('All') }}-{{ item.1.to_port | default('All') }} | Destination: {{ item.1.ip_ranges | map(attribute='cidr_ip') | join(', ') | default('N/A') }}"
+      loop: "{{ sg_data.security_groups | subelements('ip_permissions_egress', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.group_id }}"
+      when: item.0.ip_permissions_egress | length > 0

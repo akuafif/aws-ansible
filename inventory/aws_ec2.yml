@@ -1,0 +1,21 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+aws_access_key: "..."
+aws_secret_key: "..."
+session_token: "..."
+filters:
+  # Only include instances that are running
+  instance-state-name: running
+  # Only include instances with a specific tag
+  #tag:Environment: production
+keyed_groups:
+  # Automatically create groups based on the 'Type' tag (e.g., 'tag_Type_webserver')
+  - key: tags.Type
+    prefix: tag_Type
+hostnames:
+  # Use the public DNS name for the 'ansible_host' variable
+  - dns_name
+compose:
+  # Use the public_ip_address for the 'ansible_host' if public DNS is unavailable
+  ansible_host: public_ip_address

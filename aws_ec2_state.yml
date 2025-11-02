@@ -1,0 +1,32 @@
+---
+- name: Report EC2 Instance States
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get facts about all EC2 instances in a region
+      amazon.aws.ec2_instance_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+        filters:
+          instance-state-name: 'running'
+      register: ec2_data
+
+    - name: Display Instance ID and State
+      ansible.builtin.debug:
+        msg: "Instance ID: {{ item.instance_id }} | Name: {{ item.tags.Name | default('N/A') }} | State: {{ item.state.name }}"
+      loop: "{{ ec2_data.instances }}"
+      loop_control:
+        label: "{{ item.instance_id }}"

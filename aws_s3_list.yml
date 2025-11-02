@@ -1,0 +1,48 @@
+---
+- name: Report S3 Buckets
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get list of all S3 buckets
+      amazon.aws.s3_bucket_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: s3_data
+
+    - name: Display S3 Bucket Names and Creation Date
+      ansible.builtin.debug:
+        msg: "Bucket Name: {{ item.name }} | Created: {{ item.creation_date }}"
+      loop: "{{ s3_data.buckets }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Get objects in a specific bucket (optional)
+      amazon.aws.s3_object_info:
+        access_key: "{{ aws_access_key }}"
+        secret_key: "{{ aws_secret_key }}"
+        session_token: "{{ aws_session_token }}"
+        bucket_name: "your-bucket-name-here"
+        region: "{{ aws_region }}"
+      register: s3_objects
+      when: false  # Set to true and update bucket_name to list objects
+
+    - name: Display S3 Objects (optional)
+      ansible.builtin.debug:
+        msg: "Object: {{ item.key }} | Size: {{ item.size }} bytes | Last Modified: {{ item.last_modified }}"
+      loop: "{{ s3_objects.s3_keys }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when: s3_objects is defined and s3_objects.s3_keys is defined

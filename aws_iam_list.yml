@@ -1,0 +1,84 @@
+---
+- name: Report IAM Roles and Policies
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get list of all IAM Roles (basic info only)
+      amazon.aws.iam_role_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: iam_roles_data
+      ignore_errors: yes
+
+    - name: Display IAM Role Details
+      ansible.builtin.debug:
+        msg: "Role Name: {{ item.role_name }} | Role ID: {{ item.role_id }} | ARN: {{ item.arn }} | Created: {{ item.create_date }}"
+      loop: "{{ iam_roles_data.iam_roles | default([]) }}"
+      loop_control:
+        label: "{{ item.role_name }}"
+      when: iam_roles_data.iam_roles is defined
+
+    - name: Get list of all IAM Policies
+      amazon.aws.iam_policy_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: iam_policies_data
+      ignore_errors: yes
+
+    - name: Display IAM Policy Details
+      ansible.builtin.debug:
+        msg: "Policy Name: {{ item.policy_name }} | Policy ID: {{ item.policy_id }} | ARN: {{ item.arn }} | Default Version: {{ item.default_version_id }} | Attachments: {{ item.attachment_count }}"
+      loop: "{{ iam_policies_data.policies | default([]) }}"
+      loop_control:
+        label: "{{ item.policy_name }}"
+      when: iam_policies_data.policies is defined
+
+    - name: Get list of all IAM Users
+      amazon.aws.iam_user_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: iam_users_data
+      ignore_errors: yes
+
+    - name: Display IAM User Details
+      ansible.builtin.debug:
+        msg: "User Name: {{ item.user_name }} | User ID: {{ item.user_id }} | ARN: {{ item.arn }} | Created: {{ item.create_date }}"
+      loop: "{{ iam_users_data.iam_users | default([]) }}"
+      loop_control:
+        label: "{{ item.user_name }}"
+      when: iam_users_data.iam_users is defined
+
+    - name: Display permission errors summary
+      ansible.builtin.debug:
+        msg: 
+          - "=== Permission Summary ==="
+          - "IAM Roles: {{ 'SUCCESS' if iam_roles_data is succeeded else 'ACCESS DENIED' }}"
+          - "IAM Policies: {{ 'SUCCESS' if iam_policies_data is succeeded else 'ACCESS DENIED' }}"
+          - "IAM Users: {{ 'SUCCESS' if iam_users_data is succeeded else 'ACCESS DENIED' }}"

@@ -1,0 +1,62 @@
+---
+- name: Report CloudWatch Alarms
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+    - aws_credentials/aws_credentials.yml
+
+  tasks:
+    - name: Get list of all CloudWatch Alarms
+      amazon.aws.cloudwatch_metric_alarm_info:
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
+        region: "{{ aws_region }}"
+      register: cw_alarms_data
+      ignore_errors: yes
+
+    - name: Display CloudWatch Alarm Details
+      ansible.builtin.debug:
+        msg: "Alarm Name: {{ item.alarm_name }} | State: {{ item.state_value }} | Reason: {{ item.state_reason }} | Metric: {{ item.metric_name }} | Namespace: {{ item.namespace }}"
+      loop: "{{ cw_alarms_data.metric_alarms | default([]) }}"
+      loop_control:
+        label: "{{ item.alarm_name }}"
+      when: cw_alarms_data.metric_alarms is defined
+
+    - name: Display CloudWatch Alarm Configuration
+      ansible.builtin.debug:
+        msg: "Alarm: {{ item.alarm_name }} | Threshold: {{ item.threshold }} | Comparison: {{ item.comparison_operator }} | Period: {{ item.period }}s | Evaluation Periods: {{ item.evaluation_periods }} | Actions Enabled: {{ item.actions_enabled }}"
+      loop: "{{ cw_alarms_data.metric_alarms | default([]) }}"
+      loop_control:
+        label: "{{ item.alarm_name }}"
+      when: cw_alarms_data.metric_alarms is defined
+
+    - name: Display CloudWatch Alarm Actions
+      ansible.builtin.debug:
+        msg: "Alarm: {{ item.alarm_name }} | OK Actions: {{ item.ok_actions | default([]) | length }} | Alarm Actions: {{ item.alarm_actions | default([]) | length }} | Insufficient Data Actions: {{ item.insufficient_data_actions | default([]) | length }}"
+      loop: "{{ cw_alarms_data.metric_alarms | default([]) }}"
+      loop_control:
+        label: "{{ item.alarm_name }}"
+      when: cw_alarms_data.metric_alarms is defined
+
+    - name: Display Alarms Summary by State
+      ansible.builtin.debug:
+        msg:
+          - "=== CloudWatch Alarms Summary ==="
+          - "Total Alarms: {{ cw_alarms_data.metric_alarms | default([]) | length }}"
+          - "OK: {{ cw_alarms_data.metric_alarms | default([]) | selectattr('state_value', 'equalto', 'OK') | list | length }}"
+          - "ALARM: {{ cw_alarms_data.metric_alarms | default([]) | selectattr('state_value', 'equalto', 'ALARM') | list | length }}"
+          - "INSUFFICIENT_DATA: {{ cw_alarms_data.metric_alarms | default([]) | selectattr('state_value', 'equalto', 'INSUFFICIENT_DATA') | list | length }}"
+      when: cw_alarms_data.metric_alarms is defined
+
+    - name: Display permission errors
+      ansible.builtin.debug:
+        msg: "CloudWatch Alarms: {{ 'SUCCESS' if cw_alarms_data is succeeded else 'ACCESS DENIED' }}"
