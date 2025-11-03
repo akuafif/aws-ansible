@@ -31,10 +31,15 @@
 
     - name: Get objects in a specific bucket (optional)
       amazon.aws.s3_object_info:
-        access_key: "{{ aws_access_key }}"
-        secret_key: "{{ aws_secret_key }}"
-        session_token: "{{ aws_session_token }}"
-        bucket_name: "your-bucket-name-here"
+        # --- SSO MODE: Only include aws_profile when aws_mode is 'sso' ---
+        aws_profile: "{{ aws_profile if aws_mode == 'sso' else omit }}"
+
+        # --- STATIC MODE: Only include keys when aws_mode is 'static' ---
+        # Note: If not using SSO, you MUST pass all three keys for session tokens
+        access_key: "{{ static_aws_access_key if aws_mode == 'static' else omit }}"
+        secret_key: "{{ static_aws_secret_key if aws_mode == 'static' else omit }}"
+        session_token: "{{ static_aws_session_token if aws_mode == 'static' else omit }}"
+
         region: "{{ aws_region }}"
       register: s3_objects
       when: false  # Set to true and update bucket_name to list objects
